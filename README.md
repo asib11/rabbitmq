@@ -1,6 +1,6 @@
 # RabbitMQ Producer/Consumer Example
 
-This project demonstrates a simple RabbitMQ message flow using Python and Docker. It includes a producer that sends messages into a queue and a consumer that receives, processes, and acknowledges each message.
+This project demonstrates a simple RabbitMQ message flow built with Python and Docker. It includes a producer that sends messages to a queue and a consumer that receives, processes, and acknowledges each message.
 
 ## What this project does
 
@@ -16,6 +16,8 @@ This project demonstrates a simple RabbitMQ message flow using Python and Docker
 - `docker-compose.yml` – runs RabbitMQ with the management plugin
 - `producer.py` – sends messages to the `letterbox` queue
 - `consumer.py` – receives and processes messages from the queue
+- `pub-sub/` – demonstrates broadcasting messages with a fanout exchange
+- `router/` – demonstrates direct and topic-based message routing
 - `main.py` – placeholder entry point for the sample project
 - `pyproject.toml` – Python project metadata and dependencies
 
@@ -120,6 +122,85 @@ ch.basic_ack(delivery_tag=method.delivery_tag)
 ```
 
 This means no message is marked as done until the processing step finishes successfully.
+
+## Publish/subscribe (fanout exchange)
+
+The `pub-sub/` example broadcasts each message to every consumer with an active
+subscription. The producer declares the `pubsub` exchange as `fanout`, and both
+consumers create their own temporary, exclusive queues and bind them to that
+exchange. The routing key is ignored by a fanout exchange.
+
+Start each consumer in its own terminal:
+
+```bash
+python pub-sub/first_consumer.py
+python pub-sub/second_consumer.py
+```
+
+Then publish a message:
+
+```bash
+python pub-sub/producer.py
+```
+
+Both running consumers should receive the broadcast. Because the consumer
+queues are temporary, messages published while no consumer is subscribed are
+not retained for later delivery.
+
+## Message routing
+
+The `router/` examples use exchanges to select queues based on a message's
+routing key. Start the relevant consumer scripts in separate terminals before
+running the producer so their temporary queues and bindings are in place.
+
+### Direct routing
+
+The scripts in `router/direct/` use the `routing` direct exchange. A direct
+exchange delivers a message only to queues bound with an exact matching
+routing key:
+
+- `analyticsonly` routes to the analytics consumer.
+- `paymentsonly` routes to the payments consumer.
+- `both` routes to both consumers.
+
+Start the consumers and then publish the sample message:
+
+```bash
+python router/direct/analytices_consumer.py
+python router/direct/payment_consumer.py
+python router/direct/producer.py
+```
+
+The current producer publishes with the `both` key, so both consumers receive
+that message.
+
+### Topic routing
+
+The scripts in `router/topic/` use the `topic` exchange. Topic routing keys
+are dot-separated words; `*` matches one word and `#` matches zero or more
+words. The sample consumers bind these patterns:
+
+- Analytics: `*.europe.*` matches messages about any one-word category in
+  Europe.
+- Payments: `#.payments` matches routing keys ending in `payments`.
+- User: `user.#` matches routing keys beginning with `user`.
+
+Start the consumers and then publish the sample messages:
+
+```bash
+python router/topic/analytics_consumer.py
+python router/topic/payement_consumer.py
+python router/topic/user_consumer.py
+python router/topic/producer.py
+```
+
+The `user.europe.payments` message matches all three bindings. The
+`business.europe.order` message matches only the analytics binding.
+
+The broker started by `docker-compose.yml` uses the `user`/`password`
+credentials. Some topic example scripts do not explicitly pass these
+credentials in their connection parameters; if a script cannot authenticate,
+set its connection credentials to match the broker configuration.
 
 ## Notes
 

@@ -18,6 +18,9 @@ This project demonstrates a simple RabbitMQ message flow built with Python and D
 - `consumer.py` – receives and processes messages from the queue
 - `pub-sub/` – demonstrates broadcasting messages with a fanout exchange
 - `router/` – demonstrates direct and topic-based message routing
+- `consistent-hash-exchange/` – demonstrates distributing messages using the consistent-hash exchange plugin
+- `exchange-exchange/` – demonstrates routing a message from one exchange to another
+- `header-exchange/` – demonstrates routing messages by message-header values
 - `main.py` – placeholder entry point for the sample project
 - `pyproject.toml` – Python project metadata and dependencies
 
@@ -201,6 +204,67 @@ The broker started by `docker-compose.yml` uses the `user`/`password`
 credentials. Some topic example scripts do not explicitly pass these
 credentials in their connection parameters; if a script cannot authenticate,
 set its connection credentials to match the broker configuration.
+
+## Consistent-hash exchange
+
+The `consistent-hash-exchange/` example uses RabbitMQ's
+`rabbitmq_consistent_hash_exchange` plugin. Enable the plugin on the running
+RabbitMQ container:
+
+```bash
+docker exec rabbitmq rabbitmq-plugins enable rabbitmq_consistent_hash_exchange
+```
+
+The plugin must be installed in the RabbitMQ image before it can be enabled. If
+the command reports that the plugin is unknown, use a RabbitMQ image that
+includes the plugin or install the matching plugin version for your broker.
+Restart RabbitMQ after enabling the plugin if prompted.
+
+The example declares an `x-consistent-hash` exchange named `samplehashing` and
+binds two queues, `letterbox1` and `letterbox2`, with binding key `1` (equal
+weight). The producer's routing key is hashed by the exchange to choose a
+queue; it is not an ordinary exact-match routing key. To try it, first start
+the consumer:
+
+```bash
+python consistent-hash-exchange/consumer.py
+```
+
+Then, in another terminal, publish a message:
+
+```bash
+python consistent-hash-exchange/producer.py
+```
+
+## Exchange-to-exchange bindings
+
+The `exchange-exchange/` example binds `secondexchange` (a fanout exchange) to
+`firstexchange` (a direct exchange). The producer publishes to
+`firstexchange` with an empty routing key; the exchange binding forwards the
+message to `secondexchange`, which broadcasts it to queues bound to it. The
+consumer declares the `letterbox` queue and binds it to `secondexchange`.
+
+Start the consumer, then run the producer in another terminal:
+
+```bash
+python exchange-exchange/consumer.py
+python exchange-exchange/producer.py
+```
+
+## Header exchange
+
+The `header-exchange/` example routes messages by their headers rather than
+their routing key. The consumer binds `letterbox` to `headersexchange` with
+`x-match: any`, `name: brian`, and `age: 21`. With `any`, a message is delivered
+when at least one of the listed header values matches. The producer sends the
+`name: brian` header, so the message matches the binding.
+
+Start the consumer, then publish the message:
+
+```bash
+python header-exchange/consumer.py
+python header-exchange/producer.py
+```
 
 ## Notes
 
